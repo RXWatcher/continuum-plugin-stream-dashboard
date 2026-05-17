@@ -9,6 +9,10 @@ Use this plugin when operators need visibility into current and historical
 stream usage without querying the main Continuum database directly from the
 browser.
 
+## Detailed Operations Docs
+
+- [Setup, debugging, and communication flows](docs/setup-debug-flows.md)
+
 ## Features
 
 - Admin dashboard for active streams and playback history.

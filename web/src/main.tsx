@@ -80,7 +80,24 @@ async function fetchOverview(signal?: AbortSignal): Promise<Overview> {
     const body = await response.text();
     throw new Error(body || `Request failed with ${response.status}`);
   }
-  return response.json() as Promise<Overview>;
+  const payload = (await response.json()) as Partial<Overview>;
+  return normalizeOverview(payload);
+}
+
+function normalizeOverview(payload: Partial<Overview>): Overview {
+  const history = payload.history ?? fallbackOverview.history;
+  return {
+    ...fallbackOverview,
+    ...payload,
+    counts: payload.counts ?? fallbackOverview.counts,
+    sessions: Array.isArray(payload.sessions) ? payload.sessions : [],
+    map_sessions: Array.isArray(payload.map_sessions) ? payload.map_sessions : [],
+    history: {
+      ...fallbackOverview.history,
+      ...history,
+      items: Array.isArray(history.items) ? history.items : [],
+    },
+  };
 }
 
 function App() {
@@ -118,10 +135,11 @@ function App() {
     return () => window.clearInterval(id);
   }, [overview.refresh_seconds]);
 
-  const points = useMemo(() => overview.map_sessions.filter((s) => hasCoords(s.client)), [overview.map_sessions]);
-  const activeSessions = overview.sessions;
+  const mapSessions = Array.isArray(overview.map_sessions) ? overview.map_sessions : [];
+  const points = useMemo(() => mapSessions.filter((s) => hasCoords(s.client)), [mapSessions]);
+  const activeSessions = Array.isArray(overview.sessions) ? overview.sessions : [];
   const counts = overview.counts;
-  const history = overview.history ?? fallbackOverview.history;
+  const history = overview.history?.items ? overview.history : fallbackOverview.history;
 
   return (
     <main className="app-shell">

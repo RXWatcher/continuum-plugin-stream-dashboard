@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/fstest"
 )
 
 func TestAPIReportsNotConfiguredInsteadOfPanicking(t *testing.T) {
@@ -14,6 +15,28 @@ func TestAPIReportsNotConfiguredInsteadOfPanicking(t *testing.T) {
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusServiceUnavailable, rec.Body.String())
+	}
+}
+
+func TestNewDoesNotPanicWhenEmbeddedAssetsAreMissing(t *testing.T) {
+	webFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<html><body>dashboard</body></html>")},
+	}
+
+	h := New(Deps{WebFS: webFS})
+	req := httptest.NewRequest(http.MethodGet, "/assets/index.js", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("asset status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+func TestSafeSubReportsMissingDirectory(t *testing.T) {
+	_, ok := safeSub(fstest.MapFS{}, "assets")
+	if ok {
+		t.Fatal("safeSub should report missing assets")
 	}
 }
 

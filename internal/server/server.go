@@ -40,7 +40,9 @@ func New(d Deps) http.Handler {
 	})
 
 	if d.WebFS != nil {
-		r.Handle("/assets/*", http.StripPrefix("/assets/", http.FileServer(http.FS(mustSub(d.WebFS, "assets")))))
+		if assets, ok := safeSub(d.WebFS, "assets"); ok {
+			r.Handle("/assets/*", http.StripPrefix("/assets/", http.FileServer(http.FS(assets))))
+		}
 		r.Get("/dashboard", hSPA(d))
 		r.Get("/dashboard/*", hSPA(d))
 		r.Get("/admin", hSPA(d))
@@ -243,12 +245,15 @@ func pluginBaseHref(path string) string {
 	return path[:i+len(marker)+j] + "/"
 }
 
-func mustSub(webFS fs.FS, dir string) fs.FS {
+func safeSub(webFS fs.FS, dir string) (fs.FS, bool) {
+	if stat, err := fs.Stat(webFS, dir); err != nil || !stat.IsDir() {
+		return nil, false
+	}
 	sub, err := fs.Sub(webFS, dir)
 	if err != nil {
-		panic(err)
+		return nil, false
 	}
-	return sub
+	return sub, true
 }
 
 func refreshSeconds(v int) int {

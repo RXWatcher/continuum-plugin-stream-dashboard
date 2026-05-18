@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import {
   Activity,
   AlertCircle,
+  ArrowLeft,
   Circle,
   Clock3,
   Cpu,
@@ -31,6 +32,15 @@ let cachedToken = "";
 function captureTokenFromURL(): void {
   const params = new URLSearchParams(window.location.search);
   cachedToken = params.get("token") || "";
+  const theme = params.get("theme") || sessionStorage.getItem("continuum-theme") || "";
+  if (theme) {
+    document.documentElement.dataset.theme = theme;
+    try {
+      sessionStorage.setItem("continuum-theme", theme);
+    } catch {
+      // Ignore storage failures in private browsing contexts.
+    }
+  }
   if (!params.has("token")) return;
   params.delete("token");
   const clean = window.location.pathname + (params.toString() ? `?${params.toString()}` : "") + window.location.hash;
@@ -117,6 +127,10 @@ function App() {
     <main className="app-shell">
       <header className="topbar">
         <div>
+          <a className="back-link" href="/admin/plugins" title="Back to Continuum plugins">
+            <ArrowLeft size={16} />
+            <span>Continuum</span>
+          </a>
           <p className="eyebrow">Continuum plugin</p>
           <h1>Stream Dashboard</h1>
         </div>

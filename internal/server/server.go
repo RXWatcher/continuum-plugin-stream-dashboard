@@ -1,7 +1,9 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"html"
 	"io"
 	"io/fs"
@@ -19,11 +21,40 @@ import (
 )
 
 type Deps struct {
-	Store                  *store.Store
+	Store                  serverStore
 	Logger                 hclog.Logger
 	WebFS                  fs.FS
 	RefreshSeconds         int
 	HistoryRetentionPolicy store.RetentionPolicy
+}
+
+var errForbidden = errors.New("admin access required")
+
+type serverStore interface {
+	GetAppConfig(ctx context.Context) (pluginrt.Config, error)
+	UpdateAppConfig(ctx context.Context, cfg pluginrt.Config) error
+	Status(ctx context.Context) (map[string]any, error)
+	Sessions(ctx context.Context) ([]store.Session, error)
+	Counts(ctx context.Context) (store.Counts, error)
+	MapSessions(ctx context.Context) ([]store.MapSession, error)
+	PlaybackHistory(ctx context.Context, limit, offset int, policy store.RetentionPolicy, realtime bool) (store.PlaybackHistoryPage, error)
+	PlaybackHistoryReadOnly(ctx context.Context, limit, offset int) (store.PlaybackHistoryPage, error)
+}
+
+type sectionHealth struct {
+	OK      bool   `json:"ok"`
+	Code    string `json:"code,omitempty"`
+	Message string `json:"message,omitempty"`
+}
+
+type overviewResponse struct {
+	Counts         store.Counts                 `json:"counts"`
+	Sessions       []store.Session              `json:"sessions"`
+	MapSessions    []store.MapSession           `json:"map_sessions"`
+	History        store.PlaybackHistoryPage    `json:"history"`
+	RefreshSeconds int                          `json:"refresh_seconds"`
+	GeneratedAt    time.Time                    `json:"generated_at"`
+	Health         map[string]sectionHealth     `json:"health"`
 }
 
 func New(d Deps) http.Handler {
@@ -32,6 +63,7 @@ func New(d Deps) http.Handler {
 
 	r.Route("/api", func(r chi.Router) {
 		r.Use(requireStore(d))
+		r.Use(requireAdmin)
 		r.Get("/status", hStatus(d))
 		r.Get("/sessions", hSessions(d))
 		r.Get("/history", hHistory(d))
@@ -64,6 +96,20 @@ func hGetConfig(d Deps) http.HandlerFunc {
 		}
 		writeJSON(w, http.StatusOK, cfg)
 	}
+}
+
+func requireAdmin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		role := strings.TrimSpace(r.Header.Get("X-Continuum-User-Role"))
+		if role == "" {
+			role = strings.TrimSpace(r.Header.Get("X-Continuum-Role"))
+		}
+		if strings.EqualFold(role, "admin") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		writeErr(w, http.StatusForbidden, "forbidden", errForbidden.Error())
+	})
 }
 
 func hUpdateConfig(d Deps) http.HandlerFunc {
@@ -136,8 +182,7 @@ func hHistory(d Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		page := boundedIntQuery(r, "page", 1, 1, 10000)
 		limit := boundedIntQuery(r, "limit", 50, 1, 500)
-		policy := retentionPolicy(r, d.HistoryRetentionPolicy)
-		history, err := d.Store.PlaybackHistory(r.Context(), limit, (page-1)*limit, policy, true)
+		history, err := d.Store.PlaybackHistoryReadOnly(r.Context(), limit, (page-1)*limit)
 		if err != nil {
 			writeErr(w, http.StatusBadGateway, "history_failed", err.Error())
 			return
@@ -159,52 +204,71 @@ func hMap(d Deps) http.HandlerFunc {
 
 func hOverview(d Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		resp := overviewResponse{
+			Counts:         zeroCounts(),
+			Sessions:       []store.Session{},
+			MapSessions:    []store.MapSession{},
+			History:        zeroHistoryPage(20),
+			RefreshSeconds: refreshSeconds(d.RefreshSeconds),
+			GeneratedAt:    time.Now().UTC(),
+			Health: map[string]sectionHealth{
+				"counts":   {OK: true},
+				"sessions": {OK: true},
+				"map":      {OK: true},
+				"history":  {OK: true},
+			},
+		}
+
 		counts, err := d.Store.Counts(r.Context())
 		if err != nil {
-			writeJSON(w, http.StatusOK, emptyOverview(d, "counts_failed", err.Error()))
-			return
+			resp.Health["counts"] = sectionHealth{OK: false, Code: "counts_failed", Message: err.Error()}
+		} else {
+			resp.Counts = counts
 		}
+
 		sessions, err := d.Store.Sessions(r.Context())
 		if err != nil {
-			writeJSON(w, http.StatusOK, emptyOverview(d, "sessions_failed", err.Error()))
-			return
+			resp.Health["sessions"] = sectionHealth{OK: false, Code: "sessions_failed", Message: err.Error()}
+		} else {
+			resp.Sessions = sessions
 		}
+
 		mapSessions, err := d.Store.MapSessions(r.Context())
 		if err != nil {
-			writeJSON(w, http.StatusOK, emptyOverview(d, "map_failed", err.Error()))
-			return
+			resp.Health["map"] = sectionHealth{OK: false, Code: "map_failed", Message: err.Error()}
+		} else {
+			resp.MapSessions = mapSessions
 		}
-		history, err := d.Store.PlaybackHistory(r.Context(), 20, 0, retentionPolicy(r, d.HistoryRetentionPolicy), true)
+
+		history, err := d.Store.PlaybackHistoryReadOnly(r.Context(), 20, 0)
 		if err != nil {
-			writeJSON(w, http.StatusOK, emptyOverview(d, "history_failed", err.Error()))
-			return
+			resp.Health["history"] = sectionHealth{OK: false, Code: "history_failed", Message: err.Error()}
+		} else {
+			resp.History = history
 		}
-		writeJSON(w, http.StatusOK, map[string]any{
-			"counts":          counts,
-			"sessions":        sessions,
-			"map_sessions":    mapSessions,
-			"history":         history,
-			"refresh_seconds": refreshSeconds(d.RefreshSeconds),
-			"generated_at":    time.Now().UTC(),
-		})
+
+		writeJSON(w, http.StatusOK, resp)
 	}
 }
 
-func emptyOverview(d Deps, code, message string) map[string]any {
-	return map[string]any{
-		"counts": map[string]any{
-			"servers":  map[string]any{"total": 0, "online": 0, "offline": 0, "by_type": map[string]int{}},
-			"sessions": map[string]any{"active": 0, "transcoding": 0, "direct_play": 0},
-			"history":  map[string]any{"total": 0, "today": 0, "this_week": 0, "this_month": 0},
-			"users":    map[string]any{"unique": 0, "active_today": 0, "active_this_week": 0},
-			"media":    map[string]int{},
-		},
-		"sessions":        []any{},
-		"map_sessions":    []any{},
-		"history":         map[string]any{"items": []any{}, "total": 0, "limit": 20, "offset": 0, "synced_rows": 0, "pruned_rows": 0},
-		"refresh_seconds": refreshSeconds(d.RefreshSeconds),
-		"generated_at":    time.Now().UTC(),
-		"error":           map[string]any{"code": code, "message": message},
+func zeroCounts() store.Counts {
+	return store.Counts{
+		Servers: store.ServerSummary{ByType: map[string]int{}},
+		Sessions: store.SessionCounts{},
+		History: store.HistoryCounts{},
+		Users: store.UserCounts{},
+		Media: map[string]int{},
+	}
+}
+
+func zeroHistoryPage(limit int) store.PlaybackHistoryPage {
+	return store.PlaybackHistoryPage{
+		Items:      []store.PlaybackHistoryItem{},
+		Total:      0,
+		Limit:      limit,
+		Offset:     0,
+		SyncedRows: 0,
+		PrunedRows: 0,
 	}
 }
 

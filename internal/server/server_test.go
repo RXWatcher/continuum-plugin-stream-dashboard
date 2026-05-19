@@ -1,15 +1,78 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 	"testing/fstest"
+
+	pluginrt "github.com/ContinuumApp/continuum-plugin-stream-dashboard/internal/runtime"
+	"github.com/ContinuumApp/continuum-plugin-stream-dashboard/internal/store"
 )
+
+type stubStore struct {
+	config          pluginrt.Config
+	configErr       error
+	updateConfigErr error
+	status         map[string]any
+	statusErr      error
+	sessions       []store.Session
+	sessionsErr    error
+	counts         store.Counts
+	countsErr      error
+	mapSessions    []store.MapSession
+	mapErr         error
+	history        store.PlaybackHistoryPage
+	historyErr     error
+	readOnlyHistory store.PlaybackHistoryPage
+	readOnlyErr     error
+	historyCalls    int
+	readOnlyCalls   int
+}
+
+func (s *stubStore) GetAppConfig(context.Context) (pluginrt.Config, error) {
+	return s.config, s.configErr
+}
+
+func (s *stubStore) UpdateAppConfig(context.Context, pluginrt.Config) error {
+	return s.updateConfigErr
+}
+
+func (s *stubStore) Status(context.Context) (map[string]any, error) {
+	return s.status, s.statusErr
+}
+
+func (s *stubStore) Sessions(context.Context) ([]store.Session, error) {
+	return s.sessions, s.sessionsErr
+}
+
+func (s *stubStore) Counts(context.Context) (store.Counts, error) {
+	return s.counts, s.countsErr
+}
+
+func (s *stubStore) MapSessions(context.Context) ([]store.MapSession, error) {
+	return s.mapSessions, s.mapErr
+}
+
+func (s *stubStore) PlaybackHistory(context.Context, int, int, store.RetentionPolicy, bool) (store.PlaybackHistoryPage, error) {
+	s.historyCalls++
+	return s.history, s.historyErr
+}
+
+func (s *stubStore) PlaybackHistoryReadOnly(context.Context, int, int) (store.PlaybackHistoryPage, error) {
+	s.readOnlyCalls++
+	return s.readOnlyHistory, s.readOnlyErr
+}
 
 func TestAPIReportsNotConfiguredInsteadOfPanicking(t *testing.T) {
 	h := New(Deps{})
 	req := httptest.NewRequest(http.MethodGet, "/api/overview", nil)
+	req.Header.Set("X-Continuum-User-Role", "admin")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -78,5 +141,120 @@ func TestRefreshSecondsHasSafeDefault(t *testing.T) {
 	}
 	if got := refreshSeconds(5); got != 5 {
 		t.Fatalf("refreshSeconds(5) = %d, want 5", got)
+	}
+}
+
+func TestDashboardRoutesRequireAdminAccessInManifest(t *testing.T) {
+	body, err := os.ReadFile("../../cmd/continuum-plugin-stream-dashboard/manifest.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var manifest struct {
+		HTTPRoutes []struct {
+			Path   string `json:"path"`
+			Access string `json:"access"`
+		} `json:"http_routes"`
+	}
+	if err := json.Unmarshal(body, &manifest); err != nil {
+		t.Fatal(err)
+	}
+
+	accessByPath := map[string]string{}
+	for _, route := range manifest.HTTPRoutes {
+		accessByPath[route.Path] = route.Access
+	}
+
+	if got := accessByPath["/dashboard"]; got != "admin" {
+		t.Fatalf("dashboard access = %q, want admin", got)
+	}
+	if got := accessByPath["/dashboard/*"]; got != "admin" {
+		t.Fatalf("dashboard wildcard access = %q, want admin", got)
+	}
+}
+
+func TestConfigEndpointRejectsNonAdminRequests(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPatch, "/api/config", strings.NewReader(`{}`))
+	req.Header.Set("X-Continuum-User-Role", "user")
+	rec := httptest.NewRecorder()
+
+	h := New(Deps{Store: &store.Store{}})
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
+	}
+}
+
+func TestOverviewReturnsSectionHealthWhenHistoryFails(t *testing.T) {
+	st := &stubStore{
+		counts: store.Counts{
+			Servers:  store.ServerSummary{Total: 2, Online: 2, Offline: 0, ByType: map[string]int{"continuum": 2}},
+			Sessions: store.SessionCounts{Active: 1, DirectPlay: 1, Transcoding: 0},
+			History:  store.HistoryCounts{Total: 9, Today: 2, ThisWeek: 4, ThisMonth: 9},
+			Users:    store.UserCounts{Unique: 3, ActiveToday: 2, ActiveThisWeek: 3},
+			Media:    map[string]int{"movie": 9},
+		},
+		sessions:    []store.Session{{ID: "s1"}},
+		mapSessions: []store.MapSession{},
+		readOnlyErr: errors.New("history query failed"),
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/overview", nil)
+	req.Header.Set("X-Continuum-User-Role", "admin")
+	rec := httptest.NewRecorder()
+
+	New(Deps{Store: st, RefreshSeconds: 30}).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	var payload struct {
+		Counts struct {
+			Servers struct {
+				Total int `json:"total"`
+			} `json:"servers"`
+		} `json:"counts"`
+		Health map[string]struct {
+			OK      bool   `json:"ok"`
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"health"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+
+	if payload.Counts.Servers.Total != 2 {
+		t.Fatalf("counts.servers.total = %d, want 2", payload.Counts.Servers.Total)
+	}
+	if payload.Health["history"].OK {
+		t.Fatal("history health unexpectedly ok")
+	}
+	if payload.Health["history"].Code != "history_failed" {
+		t.Fatalf("history code = %q, want history_failed", payload.Health["history"].Code)
+	}
+}
+
+func TestOverviewUsesReadOnlyHistoryPath(t *testing.T) {
+	st := &stubStore{
+		counts: store.Counts{Servers: store.ServerSummary{ByType: map[string]int{}}},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/overview", nil)
+	req.Header.Set("X-Continuum-User-Role", "admin")
+	rec := httptest.NewRecorder()
+
+	New(Deps{Store: st, RefreshSeconds: 30}).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if st.historyCalls != 0 {
+		t.Fatalf("syncing history path called %d times, want 0", st.historyCalls)
+	}
+	if st.readOnlyCalls == 0 {
+		t.Fatal("read-only history path was not called")
 	}
 }

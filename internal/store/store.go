@@ -726,6 +726,26 @@ func (s *Store) PlaybackHistory(ctx context.Context, limit, offset int, policy R
 	if err != nil {
 		return PlaybackHistoryPage{}, err
 	}
+	page, err := s.PlaybackHistoryReadOnly(ctx, limit, offset)
+	if err != nil {
+		return PlaybackHistoryPage{}, err
+	}
+	page.SyncedRows = synced
+	page.PrunedRows = pruned
+	return page, nil
+}
+
+func (s *Store) PlaybackHistoryReadOnly(ctx context.Context, limit, offset int) (PlaybackHistoryPage, error) {
+	if limit < 1 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
 	lastSync, err := s.LastHistorySyncAt(ctx)
 	if err != nil {
 		return PlaybackHistoryPage{}, err
@@ -734,6 +754,14 @@ func (s *Store) PlaybackHistory(ctx context.Context, limit, offset int, policy R
 	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM playback_history`).Scan(&total); err != nil {
 		return PlaybackHistoryPage{}, err
 	}
+	items, err := s.playbackHistoryItems(ctx, limit, offset)
+	if err != nil {
+		return PlaybackHistoryPage{}, err
+	}
+	return PlaybackHistoryPage{Items: items, Total: total, Limit: limit, Offset: offset, SyncedRows: 0, PrunedRows: 0, LastSyncAt: lastSync}, nil
+}
+
+func (s *Store) playbackHistoryItems(ctx context.Context, limit, offset int) ([]PlaybackHistoryItem, error) {
 	rows, err := s.pool.Query(ctx, `
 SELECT session_id, user_id, username, profile_id, profile_name, media_item_id, media_file_id,
 	media_title, media_type, play_method, started_at, ended_at, watched_seconds,
@@ -742,7 +770,7 @@ FROM playback_history
 ORDER BY ended_at DESC
 LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
-		return PlaybackHistoryPage{}, err
+		return nil, err
 	}
 	defer rows.Close()
 	items := []PlaybackHistoryItem{}
@@ -751,11 +779,11 @@ LIMIT $1 OFFSET $2`, limit, offset)
 		if err := rows.Scan(&item.SessionID, &item.UserID, &item.Username, &item.ProfileID, &item.ProfileName,
 			&item.MediaItemID, &item.MediaFileID, &item.MediaTitle, &item.MediaType, &item.PlayMethod,
 			&item.StartedAt, &item.EndedAt, &item.WatchedSeconds, &item.DurationSeconds, &item.Completed, &item.ClientIP, &item.CreatedAt); err != nil {
-			return PlaybackHistoryPage{}, err
+			return nil, err
 		}
 		items = append(items, item)
 	}
-	return PlaybackHistoryPage{Items: items, Total: total, Limit: limit, Offset: offset, SyncedRows: synced, PrunedRows: pruned, LastSyncAt: lastSync}, rows.Err()
+	return items, rows.Err()
 }
 
 func (s *Store) LastHistorySyncAt(ctx context.Context) (*time.Time, error) {

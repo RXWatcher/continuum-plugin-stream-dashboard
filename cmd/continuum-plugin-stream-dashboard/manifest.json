@@ -28,7 +28,7 @@
       "id": "api",
       "method": "*",
       "path": "/api/*",
-      "access": "authenticated"
+      "access": "admin"
     },
     {
       "id": "assets",
@@ -40,19 +40,19 @@
       "id": "dashboard_root",
       "method": "GET",
       "path": "/dashboard",
-      "access": "authenticated",
+      "access": "admin",
       "navigable": true,
       "navigation_label": "Stream Dashboard",
-      "navigation_kind": "app"
+      "navigation_kind": "admin"
     },
     {
       "id": "dashboard_app",
       "method": "GET",
       "path": "/dashboard/*",
-      "access": "authenticated",
+      "access": "admin",
       "navigable": true,
       "navigation_label": "Stream Dashboard",
-      "navigation_kind": "app"
+      "navigation_kind": "admin"
     },
     {
       "id": "admin_root",

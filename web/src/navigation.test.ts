@@ -7,8 +7,8 @@ describe("adminBackTarget", () => {
     expect(adminBackTarget("/api/v1/plugins/37/admin/settings").label).toBe("Plugins");
   });
 
-  it("returns the main app for user dashboard routes", () => {
-    expect(adminBackTarget("/api/v1/plugins/37/dashboard").href).toBe("/");
-    expect(adminBackTarget("/dashboard").label).toBe("Continuum");
+  it("returns the plugin admin list for dashboard routes as well", () => {
+    expect(adminBackTarget("/api/v1/plugins/37/dashboard").href).toBe("/admin/plugins");
+    expect(adminBackTarget("/dashboard").label).toBe("Plugins");
   });
 });

@@ -136,7 +136,8 @@ h3 {
 }
 
 .topbar-actions,
-.segmented {
+.segmented,
+.panel-heading-actions {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -202,6 +203,7 @@ h3 {
 }
 
 .notice,
+.health-banner,
 .metrics-grid,
 .map-panel,
 .workspace-grid {
@@ -220,6 +222,29 @@ h3 {
   border: 1px solid rgba(249, 199, 79, 0.28);
   border-radius: 8px;
   background: rgba(96, 62, 16, 0.22);
+}
+
+.health-banner {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.health-banner__item,
+.panel-error {
+  display: flex;
+  gap: 10px;
+  padding: 14px 16px;
+  color: #ffe8bb;
+  border: 1px solid rgba(249, 199, 79, 0.28);
+  border-radius: 10px;
+  background: rgba(96, 62, 16, 0.22);
+}
+
+.health-banner__item div,
+.panel-error div {
+  display: grid;
+  gap: 4px;
 }
 
 .metrics-grid {
@@ -287,7 +312,8 @@ h3 {
 .map-panel,
 .sessions-panel,
 .history-panel,
-.side-panel {
+.side-panel-card,
+.settings-panel {
   border: 1px solid var(--dashboard-border);
   border-radius: 8px;
   background: var(--dashboard-panel);
@@ -297,6 +323,10 @@ h3 {
 .map-panel {
   overflow: hidden;
   margin-bottom: 16px;
+}
+
+.map-panel--secondary {
+  margin-bottom: 0;
 }
 
 .panel-heading {
@@ -574,7 +604,17 @@ h3 {
 }
 
 .side-panel {
-  padding-bottom: 8px;
+  min-width: 0;
+}
+
+.side-panel--stacked {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.side-panel-card {
+  overflow: hidden;
 }
 
 .spacer {
@@ -613,28 +653,55 @@ h3 {
   min-height: 80px;
 }
 
+.panel-error {
+  margin: 14px;
+}
+
+.panel-footnote {
+  padding: 0 14px 14px;
+  color: var(--dashboard-muted);
+  font-size: 13px;
+}
+
 .spin {
   animation: spin 0.9s linear infinite;
 }
 
-.settings-editor {
+.settings-panel__body,
+.settings-panel__actions {
   display: grid;
   gap: 12px;
+}
+
+.settings-panel__body {
+  padding: 0 16px 16px;
+}
+
+.settings-panel__actions {
   width: 100%;
 }
 
-.settings-editor h2 {
-  margin: 0;
-  font-size: 16px;
+.panel-toggle,
+.settings-panel__actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  border: 1px solid var(--dashboard-border-strong);
+  border-radius: 8px;
+  color: var(--dashboard-fg);
+  padding: 0 12px;
+  cursor: pointer;
+  background: var(--dashboard-action);
 }
 
-.settings-editor textarea {
+.settings-panel textarea {
   min-height: 280px;
   resize: vertical;
   border: 1px solid var(--dashboard-border);
   border-radius: 8px;
   background: var(--dashboard-panel);
-  color: var(--dashboard-text);
+  color: var(--dashboard-fg);
   padding: 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
@@ -671,6 +738,12 @@ h3 {
   .topbar-actions {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .panel-heading,
+  .panel-heading-actions {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .segmented {

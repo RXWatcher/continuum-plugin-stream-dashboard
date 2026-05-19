@@ -92,6 +92,19 @@ export type PlaybackHistoryPage = {
   last_sync_at?: string;
 };
 
+export type SectionHealth = {
+  ok: boolean;
+  code?: string;
+  message?: string;
+};
+
+export type OverviewHealth = {
+  counts: SectionHealth;
+  sessions: SectionHealth;
+  map: SectionHealth;
+  history: SectionHealth;
+};
+
 export type Overview = {
   counts: Counts;
   sessions: Session[];
@@ -99,4 +112,5 @@ export type Overview = {
   history: PlaybackHistoryPage;
   refresh_seconds: number;
   generated_at: string;
+  health: OverviewHealth;
 };

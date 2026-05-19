@@ -173,6 +173,38 @@ func TestDashboardRoutesRequireAdminAccessInManifest(t *testing.T) {
 	}
 }
 
+func TestManifestHasSingleNavigableAdminEntry(t *testing.T) {
+	body, err := os.ReadFile("../../cmd/continuum-plugin-stream-dashboard/manifest.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var manifest struct {
+		HTTPRoutes []struct {
+			Path           string `json:"path"`
+			Navigable      bool   `json:"navigable"`
+			NavigationKind string `json:"navigation_kind"`
+		} `json:"http_routes"`
+	}
+	if err := json.Unmarshal(body, &manifest); err != nil {
+		t.Fatal(err)
+	}
+
+	var navigableAdminRoutes []string
+	for _, route := range manifest.HTTPRoutes {
+		if route.Navigable && route.NavigationKind == "admin" {
+			navigableAdminRoutes = append(navigableAdminRoutes, route.Path)
+		}
+	}
+
+	if len(navigableAdminRoutes) != 1 {
+		t.Fatalf("navigable admin routes = %v, want exactly one", navigableAdminRoutes)
+	}
+	if navigableAdminRoutes[0] != "/admin" {
+		t.Fatalf("navigable admin route = %q, want /admin", navigableAdminRoutes[0])
+	}
+}
+
 func TestConfigEndpointRejectsNonAdminRequests(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, "/api/config", strings.NewReader(`{}`))
 	req.Header.Set("X-Continuum-User-Role", "user")

@@ -40,19 +40,13 @@
       "id": "dashboard_root",
       "method": "GET",
       "path": "/dashboard",
-      "access": "admin",
-      "navigable": true,
-      "navigation_label": "Stream Dashboard",
-      "navigation_kind": "admin"
+      "access": "admin"
     },
     {
       "id": "dashboard_app",
       "method": "GET",
       "path": "/dashboard/*",
-      "access": "admin",
-      "navigable": true,
-      "navigation_label": "Stream Dashboard",
-      "navigation_kind": "admin"
+      "access": "admin"
     },
     {
       "id": "admin_root",

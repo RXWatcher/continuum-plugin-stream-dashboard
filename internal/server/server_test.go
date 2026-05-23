@@ -11,8 +11,8 @@ import (
 	"testing"
 	"testing/fstest"
 
-	pluginrt "github.com/RXWatcher/continuum-plugin-stream-dashboard/internal/runtime"
-	"github.com/RXWatcher/continuum-plugin-stream-dashboard/internal/store"
+	pluginrt "github.com/RXWatcher/silo-plugin-stream-dashboard/internal/runtime"
+	"github.com/RXWatcher/silo-plugin-stream-dashboard/internal/store"
 )
 
 type stubStore struct {
@@ -72,7 +72,7 @@ func (s *stubStore) PlaybackHistoryReadOnly(context.Context, int, int) (store.Pl
 func TestAPIReportsNotConfiguredInsteadOfPanicking(t *testing.T) {
 	h := New(Deps{})
 	req := httptest.NewRequest(http.MethodGet, "/api/overview", nil)
-	req.Header.Set("X-Continuum-User-Role", "admin")
+	req.Header.Set("X-Silo-User-Role", "admin")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -145,7 +145,7 @@ func TestRefreshSecondsHasSafeDefault(t *testing.T) {
 }
 
 func TestDashboardRoutesRequireAdminAccessInManifest(t *testing.T) {
-	body, err := os.ReadFile("../../cmd/continuum-plugin-stream-dashboard/manifest.json")
+	body, err := os.ReadFile("../../cmd/silo-plugin-stream-dashboard/manifest.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestDashboardRoutesRequireAdminAccessInManifest(t *testing.T) {
 }
 
 func TestManifestHasSingleNavigableAdminEntry(t *testing.T) {
-	body, err := os.ReadFile("../../cmd/continuum-plugin-stream-dashboard/manifest.json")
+	body, err := os.ReadFile("../../cmd/silo-plugin-stream-dashboard/manifest.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +207,7 @@ func TestManifestHasSingleNavigableAdminEntry(t *testing.T) {
 
 func TestConfigEndpointRejectsNonAdminRequests(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, "/api/config", strings.NewReader(`{}`))
-	req.Header.Set("X-Continuum-User-Role", "user")
+	req.Header.Set("X-Silo-User-Role", "user")
 	rec := httptest.NewRecorder()
 
 	h := New(Deps{Store: &store.Store{}})
@@ -221,7 +221,7 @@ func TestConfigEndpointRejectsNonAdminRequests(t *testing.T) {
 func TestOverviewReturnsSectionHealthWhenHistoryFails(t *testing.T) {
 	st := &stubStore{
 		counts: store.Counts{
-			Servers:  store.ServerSummary{Total: 2, Online: 2, Offline: 0, ByType: map[string]int{"continuum": 2}},
+			Servers:  store.ServerSummary{Total: 2, Online: 2, Offline: 0, ByType: map[string]int{"silo": 2}},
 			Sessions: store.SessionCounts{Active: 1, DirectPlay: 1, Transcoding: 0},
 			History:  store.HistoryCounts{Total: 9, Today: 2, ThisWeek: 4, ThisMonth: 9},
 			Users:    store.UserCounts{Unique: 3, ActiveToday: 2, ActiveThisWeek: 3},
@@ -233,7 +233,7 @@ func TestOverviewReturnsSectionHealthWhenHistoryFails(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/overview", nil)
-	req.Header.Set("X-Continuum-User-Role", "admin")
+	req.Header.Set("X-Silo-User-Role", "admin")
 	rec := httptest.NewRecorder()
 
 	New(Deps{Store: st, RefreshSeconds: 30}).ServeHTTP(rec, req)
@@ -275,7 +275,7 @@ func TestOverviewUsesReadOnlyHistoryPath(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/overview", nil)
-	req.Header.Set("X-Continuum-User-Role", "admin")
+	req.Header.Set("X-Silo-User-Role", "admin")
 	rec := httptest.NewRecorder()
 
 	New(Deps{Store: st, RefreshSeconds: 30}).ServeHTTP(rec, req)

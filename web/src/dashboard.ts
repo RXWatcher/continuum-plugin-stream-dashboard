@@ -62,7 +62,7 @@ export function historyTitle(item: PlaybackHistoryItem) {
 
 export function friendlyError(message: string) {
   if (message.includes("not_ready") || message.includes("plugin not configured")) {
-    return "Plugin is not configured. Add the plugin database URL and Continuum source database URL in Continuum plugin settings.";
+    return "Plugin is not configured. Add the plugin database URL and Silo source database URL in Silo plugin settings.";
   }
   return message.length > 180 ? `${message.slice(0, 180)}...` : message;
 }

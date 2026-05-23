@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	pluginrt "github.com/RXWatcher/continuum-plugin-stream-dashboard/internal/runtime"
+	pluginrt "github.com/RXWatcher/silo-plugin-stream-dashboard/internal/runtime"
 )
 
 type Store struct {
@@ -308,8 +308,8 @@ func (s *Store) Sessions(ctx context.Context) ([]Session, error) {
 SELECT
 	s.session_id,
 	0,
-	COALESCE(NULLIF(s.reporting_node, ''), 'Continuum'),
-	'continuum',
+	COALESCE(NULLIF(s.reporting_node, ''), 'Silo'),
+	'silo',
 	COALESCE(u.username, ''),
 	COALESCE(ep.title, mi.title, ''),
 	COALESCE(CASE WHEN ep.content_id IS NOT NULL THEN 'episode' ELSE mi.type END, ''),
@@ -321,7 +321,7 @@ SELECT
 	0,
 	CASE WHEN s.is_paused THEN 'paused' ELSE 'playing' END,
 	'',
-	'Continuum',
+	'Silo',
 	COALESCE(s.target_resolution, mf.resolution, ''),
 	COALESCE(s.target_video_codec, mf.codec_video, ''),
 	COALESCE(s.target_audio_codec, mf.codec_audio, ''),
@@ -393,7 +393,7 @@ func (s *Store) Counts(ctx context.Context) (Counts, error) {
 	if err := source.QueryRow(ctx, `SELECT COUNT(*), COUNT(*) FILTER (WHERE enabled), COUNT(*) FILTER (WHERE NOT enabled) FROM public.stream_nodes`).Scan(&out.Servers.Total, &out.Servers.Online, &out.Servers.Offline); err != nil {
 		_ = source.QueryRow(ctx, `SELECT 1, 1, 0`).Scan(&out.Servers.Total, &out.Servers.Online, &out.Servers.Offline)
 	}
-	typeRows, err := source.Query(ctx, `SELECT 'continuum', COUNT(*) FROM public.playback_sessions_sync`)
+	typeRows, err := source.Query(ctx, `SELECT 'silo', COUNT(*) FROM public.playback_sessions_sync`)
 	if err != nil {
 		return out, err
 	}

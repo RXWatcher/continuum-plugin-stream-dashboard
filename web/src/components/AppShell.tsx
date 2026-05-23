@@ -56,7 +56,7 @@ export function AppShell({
             <ArrowLeft size={16} />
             <span>{backTarget.label}</span>
           </a>
-          <p className="eyebrow">Continuum admin plugin</p>
+          <p className="eyebrow">Silo admin plugin</p>
           <h1>Stream Dashboard</h1>
         </div>
         <div className="topbar-actions">

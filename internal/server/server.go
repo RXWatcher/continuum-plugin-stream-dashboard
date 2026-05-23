@@ -16,8 +16,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/hashicorp/go-hclog"
 
-	pluginrt "github.com/RXWatcher/continuum-plugin-stream-dashboard/internal/runtime"
-	"github.com/RXWatcher/continuum-plugin-stream-dashboard/internal/store"
+	pluginrt "github.com/RXWatcher/silo-plugin-stream-dashboard/internal/runtime"
+	"github.com/RXWatcher/silo-plugin-stream-dashboard/internal/store"
 )
 
 type Deps struct {
@@ -100,9 +100,9 @@ func hGetConfig(d Deps) http.HandlerFunc {
 
 func requireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		role := strings.TrimSpace(r.Header.Get("X-Continuum-User-Role"))
+		role := strings.TrimSpace(r.Header.Get("X-Silo-User-Role"))
 		if role == "" {
-			role = strings.TrimSpace(r.Header.Get("X-Continuum-Role"))
+			role = strings.TrimSpace(r.Header.Get("X-Silo-Role"))
 		}
 		if strings.EqualFold(role, "admin") {
 			next.ServeHTTP(w, r)
@@ -288,7 +288,7 @@ func hSPA(d Deps) http.HandlerFunc {
 }
 
 func injectTheme(body []byte, r *http.Request) []byte {
-	theme := r.Header.Get("X-Continuum-Theme")
+	theme := r.Header.Get("X-Silo-Theme")
 	if theme == "" {
 		theme = r.URL.Query().Get("theme")
 	}

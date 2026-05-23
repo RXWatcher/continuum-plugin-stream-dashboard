@@ -1,5 +1,5 @@
 {
-  "name": "continuum-plugin-stream-dashboard-web",
+  "name": "silo-plugin-stream-dashboard-web",
   "private": true,
   "version": "0.1.0",
   "type": "module",

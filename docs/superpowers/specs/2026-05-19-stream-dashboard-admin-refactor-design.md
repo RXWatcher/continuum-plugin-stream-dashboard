@@ -1,12 +1,12 @@
 # Stream Dashboard Admin Refactor Design
 
 Date: 2026-05-19
-Plugin: `continuum.stream-dashboard`
+Plugin: `silo.stream-dashboard`
 Status: Proposed
 
 ## Summary
 
-`continuum.stream-dashboard` currently mixes user-facing routes, admin controls, live operational views, history ingestion, and plugin configuration into one SPA. The result is a dashboard that looks active while hiding backend failures, exposes mutable config from a broadly authenticated route, and couples page reads to ingestion and retention work.
+`silo.stream-dashboard` currently mixes user-facing routes, admin controls, live operational views, history ingestion, and plugin configuration into one SPA. The result is a dashboard that looks active while hiding backend failures, exposes mutable config from a broadly authenticated route, and couples page reads to ingestion and retention work.
 
 This refactor turns the plugin into an admin-only operations console. It keeps the existing plugin/runtime model and data sources, but tightens access control, separates prepared-state reads from sync work, and restructures the UI around focused admin tasks instead of a single mixed-purpose page.
 

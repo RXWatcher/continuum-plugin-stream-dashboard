@@ -7,11 +7,11 @@ let cachedToken = "";
 export function captureTokenFromURL(): void {
   const params = new URLSearchParams(window.location.search);
   cachedToken = params.get("token") || "";
-  const theme = params.get("theme") || sessionStorage.getItem("continuum-theme") || "";
+  const theme = params.get("theme") || sessionStorage.getItem("silo-theme") || "";
   if (theme) {
     document.documentElement.dataset.theme = theme;
     try {
-      sessionStorage.setItem("continuum-theme", theme);
+      sessionStorage.setItem("silo-theme", theme);
     } catch {
       // Ignore storage failures in private browsing contexts.
     }

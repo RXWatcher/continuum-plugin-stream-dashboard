@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Turn `continuum.stream-dashboard` into an admin-only operations console that surfaces degraded backend state honestly and no longer performs sync work during dashboard reads.
+**Goal:** Turn `silo.stream-dashboard` into an admin-only operations console that surfaces degraded backend state honestly and no longer performs sync work during dashboard reads.
 
 **Architecture:** Keep the existing Go backend, scheduled sync task, and embedded React SPA. Tighten route access in the manifest and handlers, change overview responses to include section health instead of fake zero states, split history sync from history reads, and refactor the SPA into focused admin panels that render health and settings explicitly.
 
@@ -12,7 +12,7 @@
 
 ## File Structure
 
-- Modify: `cmd/continuum-plugin-stream-dashboard/manifest.json`
+- Modify: `cmd/silo-plugin-stream-dashboard/manifest.json`
   Route access contract for `/dashboard`, `/admin`, and `/api/*`.
 - Modify: `internal/server/server.go`
   HTTP route wiring, access checks for config/manual-admin endpoints, overview response contract.
@@ -52,7 +52,7 @@
 ### Task 1: Tighten manifest and server access rules
 
 **Files:**
-- Modify: `cmd/continuum-plugin-stream-dashboard/manifest.json`
+- Modify: `cmd/silo-plugin-stream-dashboard/manifest.json`
 - Modify: `internal/server/server.go`
 - Test: `internal/server/server_test.go`
 
@@ -60,7 +60,7 @@
 
 ```go
 func TestDashboardRoutesRequireAdminAccessInManifest(t *testing.T) {
-	body, err := os.ReadFile("../../cmd/continuum-plugin-stream-dashboard/manifest.json")
+	body, err := os.ReadFile("../../cmd/silo-plugin-stream-dashboard/manifest.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestDashboardRoutesRequireAdminAccessInManifest(t *testing.T) {
 
 func TestConfigEndpointRejectsNonAdminRequests(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, "/api/config", strings.NewReader(`{}`))
-	req.Header.Set("X-Continuum-Role", "user")
+	req.Header.Set("X-Silo-Role", "user")
 	rec := httptest.NewRecorder()
 
 	h := New(Deps{Store: &store.Store{}})
@@ -130,7 +130,7 @@ Expected: FAIL because the manifest still exposes `/dashboard` as authenticated 
 
 ```go
 func requireAdmin(r *http.Request) error {
-	role := strings.TrimSpace(r.Header.Get("X-Continuum-Role"))
+	role := strings.TrimSpace(r.Header.Get("X-Silo-Role"))
 	if strings.EqualFold(role, "admin") {
 		return nil
 	}
@@ -162,7 +162,7 @@ Expected: PASS
 - [ ] **Step 5: Commit the access-control slice**
 
 ```bash
-git add cmd/continuum-plugin-stream-dashboard/manifest.json \
+git add cmd/silo-plugin-stream-dashboard/manifest.json \
   internal/server/server.go \
   internal/server/server_test.go
 git commit -m "feat: make stream dashboard admin only"
@@ -183,7 +183,7 @@ git commit -m "feat: make stream dashboard admin only"
 func TestOverviewReturnsSectionHealthWhenHistoryFails(t *testing.T) {
 	st := newStubStore()
 	st.counts = store.Counts{
-		Servers: store.ServerSummary{Total: 1, Online: 1, Offline: 0, ByType: map[string]int{"continuum": 1}},
+		Servers: store.ServerSummary{Total: 1, Online: 1, Offline: 0, ByType: map[string]int{"silo": 1}},
 		Sessions: store.SessionCounts{Active: 1, DirectPlay: 1},
 	}
 	st.historyErr = errors.New("history query failed")
@@ -673,7 +673,7 @@ Expected: Only intended source changes remain
 - [ ] **Step 5: Commit final verification fixes if needed**
 
 ```bash
-git add cmd/continuum-plugin-stream-dashboard/manifest.json \
+git add cmd/silo-plugin-stream-dashboard/manifest.json \
   internal/server/server.go \
   internal/server/server_test.go \
   internal/store/store.go \

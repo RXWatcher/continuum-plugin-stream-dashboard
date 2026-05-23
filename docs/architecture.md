@@ -4,10 +4,10 @@ Operator-oriented view of how the Stream Dashboard plugin is wired together. Int
 
 ## Process Layout
 
-The binary is a single Go process spawned by the Continuum plugin host over gRPC (`pluginsdk/runtime.Serve`). It registers three capability servers from `internal/`:
+The binary is a single Go process spawned by the Silo plugin host over gRPC (`pluginsdk/runtime.Serve`). It registers three capability servers from `internal/`:
 
 ```
-cmd/continuum-plugin-stream-dashboard/main.go
+cmd/silo-plugin-stream-dashboard/main.go
   -> pluginrt.Server (Runtime/Configure)         [internal/runtime]
   -> httproutes.Server (HTTPRoutes)              [internal/httproutes]
   -> poll.Server (ScheduledTask)                 [internal/poll]
@@ -18,7 +18,7 @@ cmd/continuum-plugin-stream-dashboard/main.go
 ## Data Flow
 
 ```
-                Continuum host DB (read-only)
+                Silo host DB (read-only)
                           |
                           | sourcePool (pgxpool)
                           v
@@ -49,8 +49,8 @@ The store is the only thing that talks to either database. All HTTP handlers and
 | Path | Role |
 | --- | --- |
 | `internal/runtime/runtime.go` | Implements `Runtime.Configure`. Parses global config into `Config`, applies `NormalizeAppConfig` (floors and defaults), calls the `onConfig` callback in `main.go`. Holds the last-applied config under a mutex for inspection — though nothing else currently reads it. |
-| `internal/store/store.go` | All SQL. Two pools (`pool` plugin-owned, `sourcePool` Continuum). Owns `Migrate`, sessions/counts/map/history queries, cursor management, retention pruning, `app_config` persistence. The `GeoLocator` interface is consumed here for `MapSessions` enrichment. |
-| `internal/server/server.go` | `chi` HTTP router. `requireAdmin` middleware checks `X-Continuum-User-Role`. `hOverview` is the SPA's main poll and the only handler that builds per-section health. SPA shell is served via `hSPA` with asset path rewriting and theme injection. |
+| `internal/store/store.go` | All SQL. Two pools (`pool` plugin-owned, `sourcePool` Silo). Owns `Migrate`, sessions/counts/map/history queries, cursor management, retention pruning, `app_config` persistence. The `GeoLocator` interface is consumed here for `MapSessions` enrichment. |
+| `internal/server/server.go` | `chi` HTTP router. `requireAdmin` middleware checks `X-Silo-User-Role`. `hOverview` is the SPA's main poll and the only handler that builds per-section health. SPA shell is served via `hSPA` with asset path rewriting and theme injection. |
 | `internal/httproutes/server.go` | Thin adapter exposing `SetHandler` so `main.go` can swap routers on reconfigure without restarting the gRPC server. |
 | `internal/poll/scheduled.go` | Implements `ScheduledTask.Run`. Holds `atomic.Pointer` to `*store.Store` and `*RetentionPolicy`; both are nil before first successful `Configure`. Calls `SyncPlaybackHistory` (the full-batch path, up to 20 batches of 5000 rows). |
 | `internal/geoip/geoip.go` | Provider-aware locator with TTL cache. See [`geoip.md`](geoip.md). |
@@ -81,7 +81,7 @@ The SPA reads `health.{counts,sessions,map,history}` to render the banner cells.
 
 ## SPA Asset Rewriting
 
-The plugin is mounted under a host-controlled prefix (Continuum routes it as `/api/v1/plugins/<install-id>/...`). The SPA's embedded `index.html` has `/assets/...` absolute references baked in by Vite. `rewritePluginAssets` rewrites those to relative paths based on the current request:
+The plugin is mounted under a host-controlled prefix (Silo routes it as `/api/v1/plugins/<install-id>/...`). The SPA's embedded `index.html` has `/assets/...` absolute references baked in by Vite. `rewritePluginAssets` rewrites those to relative paths based on the current request:
 
 - Top-level (`/admin`, `/dashboard`, `/`) — `assets/foo.js`
 - Deep links (`/admin/anything`) — `../assets/foo.js`
@@ -97,6 +97,6 @@ The `pluginBaseHref` helper is unused in the current build but exists for the ca
 ## What Is Not Here
 
 - No event consumption (`event.v1` capability not registered). Plugin is purely poll-driven from the source DB.
-- No outbound webhooks or notifications. For cross-plugin events, the `continuum-plugin-notifications` hub is the intended path; this plugin doesn't publish to it today.
+- No outbound webhooks or notifications. For cross-plugin events, the `silo-plugin-notifications` hub is the intended path; this plugin doesn't publish to it today.
 - No background goroutines beyond what `pgxpool` and the host's scheduled-task runner provide. All work happens on request or on the cron tick.
 - No SSE/websocket. The 30 s poll is the only refresh mechanism.

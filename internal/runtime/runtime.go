@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	pluginv1 "github.com/ContinuumApp/continuum-plugin-sdk/pkg/pluginproto/continuum/plugin/v1"
+	pluginv1 "github.com/ContinuumApp/continuum-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	"github.com/ContinuumApp/continuum-plugin-sdk/pkg/pluginsdk/runtimedefault"
 )
 
@@ -111,7 +111,7 @@ func (s *Server) Configure(_ context.Context, req *pluginv1.ConfigureRequest) (*
 		switch e.GetKey() {
 		case "plugin_database":
 			cfg.DatabaseURL = stringValue(m["database_url"], m["value"], firstString(m))
-		case "continuum_database":
+		case "silo_database":
 			cfg.SourceDatabaseURL = stringValue(m["source_database_url"])
 			if cfg.SourceDatabaseURL == "" {
 				cfg.SourceDatabaseURL = stringValue(m["database_url"], m["value"], firstString(m))

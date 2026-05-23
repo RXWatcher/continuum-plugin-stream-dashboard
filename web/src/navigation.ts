@@ -2,6 +2,6 @@ export function adminBackTarget(pathname: string): { href: string; label: string
   return {
     href: "/admin/plugins",
     label: "Plugins",
-    title: "Back to Continuum plugins",
+    title: "Back to Silo plugins",
   };
 }
